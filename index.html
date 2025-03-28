@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+  <html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+   
+    <title>Tic Tac Toe!!!!!! \(real not clicbait)</title>
+    
+    <link rel="stylesheet" href="style.css">  
+    
+    <script src="script.js"></script>
+  </head>
+  
+  <body>
+    <h1>Tic Tac Toe!!!</h1>
+    <h2 id="winMsg"></h2>
+    <div class="container">
+        <div id="game">
+            <script>resetBoard()</script>
+        </div>
+        <button onclick="resetBoard()">Reset Board</button>
+        <button onclick="importPos()">Import Position</button>
+        <button onclick="prompt('Copy position', exportPos())">Export Position</button>
+    </div>
+  </body>
+  
+</html>

@@ -13,8 +13,6 @@ var dx;
 var dy;
 var speed;
 var moves;
-var lastX;
-var lastY;
 
 var foodX;
 var foodY;
@@ -25,6 +23,7 @@ var gameLoop;
 
 var eatSound;
 var deathSound;
+var images;
 
 window.onload = function () {
     // Set game size
@@ -40,7 +39,25 @@ window.onload = function () {
     eatSound = new sound("audio/take.mp3");
     deathSound = new sound("audio/bonk.mp3");
 
-    init();
+    // load images and init
+    let loadedImgs = 0;
+    images = {
+        headImage: new Image(),
+        deadImage: new Image(),
+        foodImage: new Image()
+    }
+    images.headImage.src = "sprites/head.png";
+    images.deadImage.src = "sprites/dead.png";
+    images.foodImage.src = "sprites/apple.png";
+
+    for (let key in images) {
+        images[key].onload = function () {
+            loadedImgs++;
+            if (loadedImgs >= 3) {
+                init();
+            }
+        }
+    }
 }
 
 function init() {
@@ -59,8 +76,6 @@ function init() {
     dy = 0;
     speed = 5;
     moves = []
-    lastX = headX;
-    lastY = headY;
 
     foodX = headX + 8 * block;
     foodY = headY;
@@ -113,25 +128,33 @@ function update() {
     }
 
     // draw food
-    context.fillStyle = "#FFFF00";
-    context.fillRect(foodX, foodY, block, block);
+    // context.fillStyle = "#FFFF00";
+    // context.fillRect(foodX, foodY, block, block);
+    context.drawImage(images.foodImage, foodX, foodY);
 
     // draw and move snake
     headX += dx * speed;
     headY += dy * speed;
 
-    context.fillStyle = "#FF0000";
+    let initBodyCol = Math.max(250 - Math.floor(body.length / 3), 100);
+    let bodyCol = initBodyCol;
     for (let i = body.length - 1; i >= 0; i--) {
+        bodyCol += Math.floor((255 - initBodyCol) / i);
+        context.fillStyle = `rgb(${bodyCol}, 0, 0)`;
         context.fillRect(body[i][0], body[i][1], block, block);
         if (dx != 0 || dy != 0) {
             if (i == 0) body[i] = [headX, headY];
             else body[i] = [body[i - 1][0], body[i - 1][1]];
         }
     }
-    lastX = headX;
-    lastY = headY;
-
-    context.fillRect(headX, headY, block, block);
+    
+    context.save();
+    context.translate(headX + block / 2, headY + block / 2);
+    if (dx == -1) context.rotate(Math.PI/180 * 180);
+    if (dy == 1) context.rotate(Math.PI/180 * 90);
+    if (dy == -1) context.rotate(Math.PI/180 * 270);
+    context.drawImage(images.headImage, -block / 2, -block / 2, block, block); 
+    context.restore();
 
     // collisions
     if (headX == foodX && headY == foodY) {
@@ -162,13 +185,13 @@ function keyPressed(e) {
     }
 
     if (dx == 0 && dy == 0) moves.push("right");
-    else if (e.code == "ArrowUp" && (moves.length == 0 || moves[0] != "down") && dy != 1) { 
+    else if ((e.code == "ArrowUp" || e.code == "KeyW") && (moves.length == 0 || moves[0] != "down") && dy != 1) { 
         moves.push("up");
-    } else if (e.code == "ArrowDown" && (moves.length == 0 || moves[0] != "up") && dy != -1) {
+    } else if ((e.code == "ArrowDown" || e.code == "KeyS") && (moves.length == 0 || moves[0] != "up") && dy != -1) {
         moves.push("down");
-    } else if (e.code == "ArrowLeft" && (moves.length == 0 || moves[0] != "right") && dx != 1) {
+    } else if ((e.code == "ArrowLeft" || e.code == "KeyA") && (moves.length == 0 || moves[0] != "right") && dx != 1) {
         moves.push("left");
-    } else if (e.code == "ArrowRight" && (moves.length == 0 || moves[0] != "left") && dx != -1) { 
+    } else if ((e.code == "ArrowRight" || e.code == "KeyD") && (moves.length == 0 || moves[0] != "left") && dx != -1) { 
         moves.push("right");
     }
 
@@ -180,6 +203,14 @@ function gameOver() {
     context.font = "50px Arial";
     context.fillText("Game Over", game.width / 2 - 3.5 * block, game.height / 2);
     deathSound.play();
+
+    context.save();
+    context.translate(headX + block / 2, headY + block / 2);
+    if (dx == -1) context.rotate(Math.PI/180 * 180);
+    if (dy == 1) context.rotate(Math.PI/180 * 90);
+    if (dy == -1) context.rotate(Math.PI/180 * 270);
+    context.drawImage(images.deadImage, -block / 2, -block / 2, block, block); 
+    context.restore();
 
     if (score > highScore) {
         highScore = score;

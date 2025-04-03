@@ -41,16 +41,20 @@ window.onload = function () {
     document.getElementById("high").innerText = "High Score: " + highScore;
     document.addEventListener("keydown", keyPressed);
 
-    document.addEventListener("touchstart", function (e) {
+    document.getElementById("game").addEventListener("touchstart", function (e) {
+        e.preventDefault();
+        
         touchStartX = e.touches[0].clientX;
         touchStartY = e.touches[0].clientY;
-    });
+    }, { passive: false });
     
-    document.addEventListener("touchend", function (e) {
+    document.getElementById("game").addEventListener("touchend", function (e) {
+        e.preventDefault();
+
         touchEndX = e.changedTouches[0].clientX;
         touchEndY = e.changedTouches[0].clientY;
         swipe();
-    });
+    }, { passive: false });
 
     eatSound = new sound("audio/take.mp3");
     deathSound = new sound("audio/bonk.mp3");

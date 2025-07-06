@@ -92,8 +92,8 @@ window.onload = function () {
     images.headArmedImage.src = "sprites/headArmed.png";
     images.headArmed2Image.src = "sprites/headArmed2.png";
     images.bulletImage.src = "sprites/bullet.png";
-    images.splatImage.src = "/sprites/splat.png";
-    images.splat2Image.src = "/sprites/splat2.png";
+    images.splatImage.src = "sprites/splat.png";
+    images.splat2Image.src = "sprites/splat2.png";
 
     for (let key in images) {
         images[key].onload = function () {

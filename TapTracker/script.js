@@ -26,3 +26,10 @@ document.getElementById('minus5').addEventListener('click', () => {
     value -= 5;
     update();
 });
+
+document.getElementById('reset').addEventListener('click', () => {
+    if (confirm("Are you sure you want to reset the counter?")) {
+        value = 0;
+        update();
+    }
+});

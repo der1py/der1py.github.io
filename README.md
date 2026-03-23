@@ -1,1 +1,1 @@
-hello guys welcome to my EPIC website
+just hosting some of my web stuff :D

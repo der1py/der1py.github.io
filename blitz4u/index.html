@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <!-- custom stuff -->
+  <meta charset="UTF-8">
+  <title>boxel rebound</title>
+  <link rel="stylesheet" href="css/global.css">
+  <link rel="stylesheet" href="css/game.css" id="gameStyle">
+
+  <!-- generated styling -->
+  <link rel="stylesheet" href="css/menu.css" id="menuStyle">
+  <link rel="stylesheet" href="css/quiz.css" id="quizMenuStyle">
+  <link rel="stylesheet" href="css/settings.css" id="settingsMenuStyle">
+   
+</head>
+<body>
+  <main-menu class="menu" id="main-menu"></main-menu>
+  <quiz-menu class="menu" id="quiz-menu"></quiz-menu>
+  <settings-menu class="menu" id="settings-menu"></settings-menu>
+
+
+  <canvas id="gameCanvas" width="800" height="400" class="gameElement"></canvas>
+  <button id="menuButton" class="gameElement">☰</button>
+
+  <div id="pauseOverlay" class="hidden gameElement">
+    <h2>Paused</h2>
+    <p>−10 points penalty</p>
+    <div class="pause-buttons">
+      <button id="resumeButton">Resume</button>
+      <button id="quitButton">Quit to Menu</button>
+    </div>
+  </div>
+
+  <div id="winOverlay" class="overlay gameElement">
+  <div class="overlay-content">
+    <h1>Level Completed</h1>
+    <h2 id="performanceText">Performance: 0%</h2>
+
+    <div class="pause-buttons">
+      <button id="winMenuButton">Return to Menu</button>
+    </div>
+  </div>
+</div>
+
+  <script type="module" src="./src/script.js"></script>
+</body>
+</html>

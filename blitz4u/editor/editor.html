@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Level Editor</title>
+
+  <!-- CSS -->
+  <link rel="stylesheet" href="editor.css" />
+</head>
+
+<body>
+  <div id="editorWrapper">
+    <div id="palette">
+      <button data-type="0">Air</button>
+      <button data-type="1">Block</button>
+      <button data-type="2">Spike</button>
+      <button data-type="3">Slime</button>
+      <button data-type="4">Goal</button>
+    </div>
+
+    <div id="controls">
+      <button id="clearBtn">Clear</button>
+      <button id="exportBtn">Export</button>
+      <button id="importBtn">Import</button>
+    </div>
+
+    <canvas id="editorCanvas"></canvas>
+  </div>
+
+  <div id="testBtnContainer">
+    <button id="testLevelBtn">Play Level</button>
+  </div>
+
+  <!-- JS -->
+  <script type="module" src="editor.js"></script>
+</body>
+</html>

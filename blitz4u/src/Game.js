@@ -1,0 +1,560 @@
+// main game file
+
+import { Player } from './entities/Player.js';
+import { ObstacleManager } from './ObstacleManager.js';
+import { QuizManager } from './QuizManager.js';
+import { Renderer } from './Renderer.js';
+import { InputHandler } from './InputHandler.js';
+import { ParticleManager } from './ParticleManager.js';
+import { QUESTION_BANK } from './QuestionBank.js';
+import { TRIG_ID_QUESTIONS } from './QuestionBank.js';
+import { SOLUBILITY_QUESTIONS } from './QuestionBank.js';
+import { TUTORIAL_STRUCTURE } from './Structures.js';
+import { TUTORIAL_QUESTION } from './QuestionBank.js';
+import { EASY_STRUCTURES } from './Structures.js';
+import { HARD_STRUCTURES } from './Structures.js';
+
+// states
+const GameState = Object.freeze({
+  RUNNING: 'RUNNING',
+  QUIZ: 'QUIZ',
+  GAME_OVER: 'GAME_OVER',
+  MENU: 'MENU',
+  QUIZ_MENU: 'QUIZ_MENU',
+  SETTINGS: 'SETTINGS',
+  PAUSED: 'PAUSED',
+  WIN: 'WIN',
+});
+
+const GameMode = Object.freeze({
+  LEVEL: 'LEVEL',
+  ENDLESS: 'ENDLESS'
+});
+
+// edit config externally with setConfig method
+const BLOCK_SIZE = 30;
+export const CONFIG = {
+  blockSize: BLOCK_SIZE,
+  canvasWidth: 20 * BLOCK_SIZE,
+  canvasHeight: 12 * BLOCK_SIZE,
+  scrollSpeed: 240, // used for obsracle movement and quiz text speed; in pixels per second
+  difficulty: 1, // 0 is ez, 1 is normal, 2 is hard, -1 is focus
+  tutorial: false,
+  respawn: true,
+  pointsPerQuestion: 30,
+  quiz: 1 // 0 is tutorial, 1 is trig id, 2 is solubility, 3 is custom import
+};
+
+export class Game {
+  constructor() {
+    this.canvas = document.getElementById("gameCanvas");
+    this.ctx = this.canvas.getContext("2d");
+    this.canvas.width = CONFIG.canvasWidth;
+    this.canvas.height = CONFIG.canvasHeight;
+
+    this.lastTime = 0;
+
+    this.setupUI();
+
+    this.questionSet = QUESTION_BANK;
+    this.prevState = GameState.RUNNING;
+
+    this.reset();
+    this.state = GameState.MENU;
+
+    // this.setupMobileControls();
+
+    // Start loop
+    requestAnimationFrame(this.loop.bind(this));
+  }
+
+  // setupMobileControls() {
+  //   window.addEventListener("touchstart", (e) => {
+  //     e.preventDefault(); // stops scrolling / zooming
+  //     this.inputHandler.isMouseDown = true;
+  //   }, { passive: false });
+
+  //   window.addEventListener("touchend", () => {
+  //     this.inputHandler.isMouseDown = false;
+  //   });
+  // }
+
+  setupUI() {
+    // DOM references
+    this.pauseOverlay = document.getElementById("pauseOverlay");
+    this.resumeButton = document.getElementById("resumeButton");
+    this.quitButton = document.getElementById("quitButton");
+
+    this.winOverlay = document.getElementById("winOverlay");
+    this.performanceText = document.getElementById("performanceText");
+    this.winMenuButton = document.getElementById("winMenuButton");
+
+    // win menu button
+    this.winMenuButton.addEventListener("click", () => {
+      this.state = GameState.MENU;   // switch to menu
+      this.winOverlay.classList.add("hidden");
+    });
+
+    // Resume button
+    this.resumeButton.addEventListener("click", () => {
+      this.unpause();
+    });
+
+    // Quit button
+    this.quitButton.addEventListener("click", () => {
+      this.state = GameState.MENU;   // switch to menu
+      this.pauseOverlay.classList.add("hidden");
+    });
+  }
+
+  reset() {
+    // check if new questions selected
+    switch (CONFIG.quiz) {
+      case 0:
+        this.questionSet = QUESTION_BANK; // erm
+        break;
+      case 1:
+        this.questionSet = TRIG_ID_QUESTIONS;
+        break;
+      case 2:
+        this.questionSet = SOLUBILITY_QUESTIONS;
+        break;
+      case 3:
+        this.questionSet = CUSTOM_QUESTIONS;
+        break;
+      default:
+        console.warn("Invalid quiz selected");
+        this.state = GameState.MENU;
+        alert("Invalid quiz selected, returning to menu");
+    }
+
+    if (CONFIG.tutorial) this.questionSet = TUTORIAL_QUESTION; // override if tutorial mode
+
+    // Player setup
+    this.player = new Player(3 * CONFIG.blockSize, 10 * CONFIG.blockSize);
+
+    // Input and renderer
+    this.input = new InputHandler();
+    this.renderer = new Renderer(this.ctx, this.canvas);
+    
+    this.loadStructures();
+
+    this.quizManager = new QuizManager(this.obstacleManager, this.questionSet);
+    this.particleManager = new ParticleManager();
+    this.completedQuestions = 0;
+    this.totalQuestions = this.questionSet.length;
+
+    // Score & game state
+    this.score = 0;
+    this.state = GameState.RUNNING;
+    this.stateBeforeDeath = null;
+
+    this.goalCooldown = 0; // time remaining (ms)
+    this.maxGoalCooldown = 2000; // 2 seconds
+
+    if (CONFIG.tutorial)  {
+      this.obstacleManager.spawnStructure(TUTORIAL_STRUCTURE[0]); 
+      this.obstacleManager.spawnScrollingText(6, "click or press space to jump", 0);
+      this.obstacleManager.spawnScrollingText(6, "red kills u :O", 30);
+      this.obstacleManager.spawnScrollingText(6, "green = bouncy :D", 50);
+      this.obstacleManager.spawnScrollingText(2, "fall from higher to bounce higher!", 80);
+      this.obstacleManager.spawnScrollingText(6, "answer correctly or DIE 😨", 105);
+      this.obstacleManager.spawnScrollingText(8, "press p or menu icon to pause for more time,", 105);
+      this.obstacleManager.spawnScrollingText(9, "but you take a score penalty", 105);
+    }
+
+    // this.obstacleManager.spawnStructure(TUTORIAL_STRUCTURES[1]);
+    // this.obstacleManager.spawnStructure(EASY_STRUCTURES[0]);  
+  }
+
+  // on death
+  softReset() {
+    this.player = new Player(3 * CONFIG.blockSize, 10 * CONFIG.blockSize);
+    this.obstacleManager.clear();
+    this.state = GameState.RUNNING;
+    // if (this.stateBeforeDeath) this.state = this.stateBeforeDeath;
+    if (this.stateBeforeDeath === GameState.QUIZ) {
+      this.obstacleManager.spawnsSinceLastQuiz = 1; // make it apply only to quiz part 1 later otherwise u can die and skip an obstacle after scoring
+    }
+  }
+
+  loadStructures() {
+
+    if (CONFIG.tutorial) {
+      this.obstacleManager = new ObstacleManager(TUTORIAL_STRUCTURE);
+      return;
+    }
+
+    let STRUCTURES = [];
+
+    switch(CONFIG.difficulty) {
+      case -1:
+        break;
+      case 0:
+        STRUCTURES = [
+          ...EASY_STRUCTURES
+        ];
+        break;
+      case 1:
+        STRUCTURES = [
+          ...EASY_STRUCTURES,
+          ...HARD_STRUCTURES  // 1x weight
+        ];
+        break;
+      case 2:
+        STRUCTURES = [
+          ...HARD_STRUCTURES
+        ];
+        break;
+      default:
+        console.warn("invalid difficulty selected");
+    }
+    console.log(STRUCTURES);
+
+    this.obstacleManager = new ObstacleManager(STRUCTURES);
+  }
+
+  loop(timestamp) {
+    const deltaTime = timestamp - this.lastTime;
+    this.lastTime = timestamp;
+
+    // switch (this.state) {
+    //   case GameState.QUIZ:
+    //   case GameState.RUNNING:
+    //     this.update(deltaTime);
+    //     break;
+    // }
+    this.update(deltaTime);
+    this.draw(deltaTime);
+    this.input.update(); // update input state at end of frame so justPressed works properly
+    requestAnimationFrame(this.loop.bind(this));
+  }
+
+  // update the main gameplaying state
+  update(deltaTime) {
+    if (this.input.isKeyJustPressed("m")) {
+    console.log(CONFIG.difficulty);
+    console.log(CONFIG.respawn);
+    }
+
+    if (this.input.isKeyJustPressed("p")) {
+      if (this.state === GameState.PAUSED) {
+        this.unpause();
+        return;
+      }
+    }
+
+    if (this.state === GameState.PAUSED) return;
+    if (this.state === GameState.WIN) return;
+
+    this.updateCSS();
+
+    switch (this.state) {
+      case GameState.SETTINGS:
+        this.toggleMenu(false);
+        this.toggleMenu(true, "settings-menu");
+        this.toggleGame(false);
+        return;
+      case GameState.QUIZ_MENU:
+        this.toggleMenu(false);
+        this.toggleMenu(true, "quiz-menu");
+        this.toggleGame(false);
+        return;
+      case GameState.MENU:
+        this.toggleMenu(false); // disable all other menus
+        this.toggleMenu(true, "main-menu");
+        this.toggleGame(false);
+        return;
+      case GameState.QUIZ:
+      case GameState.RUNNING:
+        if (this.input.isKeyJustPressed("p")) this.pause();
+        break;
+      case GameState.GAME_OVER:
+        if (this.particleManager.particles.length == 0) {
+          if (CONFIG.tutorial) this.reset();
+          else if (CONFIG.respawn) this.softReset();
+          else this.reset();
+        }
+        return;
+      default:
+        return;
+    }
+
+    this.toggleMenu(false);
+    this.toggleGame(true);
+
+    // handle input
+    if (this.input.isKeyPressed(" ") || this.input.isKeyPressed("ArrowUp") || this.input.isMousePressed()) {
+        this.player.jump();
+    }
+
+    // TODO debug
+    if (this.input.isKeyPressed("3")) {
+        console.log(this.obstacleManager.obstacles);
+    }
+    
+    this.moveAndCollide(deltaTime);
+
+    // update goal cooldown
+    this.goalCooldown = Math.max(0, this.goalCooldown - deltaTime);
+
+
+    // start quiz in tutorial
+    if (CONFIG.tutorial && this.obstacleManager.obstacles.length == 0 && !this.quizManager.active) {
+        this.state = GameState.QUIZ;
+        this.quizManager.init();
+    }
+
+    // update based on state
+    if (this.state == GameState.RUNNING) {
+      if (CONFIG.difficulty == -1) {
+        this.state = GameState.QUIZ;
+        this.quizManager.init();
+      }
+      // spawn new structures as needed
+      if (this.obstacleManager.spawnsSinceLastQuiz >= 2) {
+        this.state = GameState.QUIZ;
+        this.obstacleManager.spawnsSinceLastQuiz = 0;
+        this.quizManager.init();
+      } else {
+        this.obstacleManager.spawnNewStructure();
+      }
+
+    } else if (this.state == GameState.QUIZ) {
+      // quiz logic
+      this.quizManager.update();
+      if (!this.quizManager.active) this.state = GameState.RUNNING;
+    }
+
+  }
+
+  // render everything, only canvas stuff should be here; menus handeled separately
+  draw(deltaTime) {
+    this.renderer.clear();
+
+    switch (this.state) {
+      case GameState.RUNNING:
+      case GameState.QUIZ:
+      case GameState.PAUSED:
+        this.renderer.drawPlayer(this.player, deltaTime);
+        this.handleGroundParticles();
+        break;
+      case GameState.GAME_OVER:
+        // this.ctx.fillStyle = "black";
+        // this.ctx.font = "40px Arial";
+        // this.ctx.fillText(
+        //   "Game Over!", 
+        //   CONFIG.canvasWidth / 2 - 100,
+        //   CONFIG.canvasHeight / 2
+        // );
+    }
+
+    this.obstacleManager.obstacles.forEach(obstacle => this.renderer.drawObstacle(obstacle));
+    this.renderer.drawScore(Math.floor(this.score));
+    this.renderer.drawQuizProgress(this.completedQuestions, this.totalQuestions);
+    this.particleManager.update(deltaTime); // particles are purely visual so update in draw
+    this.renderer.drawParticles(this.particleManager.particles);
+  }
+
+  handleGroundParticles() {
+    if (this.player.isOnGround) {
+          this.particleManager.spawnGroundParticles(
+            this.player.x, 
+            this.player.y + this.player.height / 2, 
+            Math.max(1, 10 - this.particleManager.particles.length), 
+            {r:0, g:255, b:255},
+            -5, -2
+          );
+    }
+  }
+
+  gameOver() {
+    if (this.state == GameState.GAME_OVER) return;
+    this.particleManager.spawnParticles(this.player.x, this.player.y, 80);
+    this.stateBeforeDeath = this.state;
+    this.state = GameState.GAME_OVER;
+    this.score -= 10; // apply penalty for dying
+  }
+
+  // show/hide menus
+  // default is all menu elements, but can specify a class to only toggle one menu
+  toggleMenu(show, menu = "all") {
+    
+    if (menu == "all") {
+      document.querySelectorAll(`.menu`).forEach(el => {
+        el.classList.toggle("hidden", !show);
+      });
+    } else if (document.getElementById(menu)) {
+      document.getElementById(menu).classList.toggle("hidden", !show);
+    } else {
+      console.warn(`Menu with id ${menu} not found`);
+    }
+  }
+
+  toggleGame(show) {
+    document.querySelectorAll(`.gameElement`).forEach(el => {
+        el.classList.toggle("hidden", !show);
+    });
+    // show/hide pause overlay
+    if (this.state == GameState.PAUSED) {
+      this.pauseOverlay.classList.remove("hidden");
+    } else {
+      this.pauseOverlay.classList.add("hidden");
+    }
+
+    // show/hide win overlay
+    if (this.state == GameState.WIN) {
+      this.winOverlay.classList.remove("hidden");
+    } else {
+      this.winOverlay.classList.add("hidden");
+    }
+  }
+
+  pause() {
+    if (this.state !== GameState.RUNNING && this.state !== GameState.QUIZ) return;
+
+    this.prevState = this.state;
+    this.state = GameState.PAUSED;
+    this.score -= 10; // apply penalty immediately
+    this.pauseOverlay.classList.remove("hidden");
+
+  }
+
+  unpause() {
+    this.state = this.prevState;
+    this.pauseOverlay.classList.add("hidden");
+  }
+
+  // make it only call on state change to be slightly more efficient maybe
+  updateCSS() {
+    switch (this.state) {
+      case GameState.MENU:
+        document.getElementById("gameStyle").disabled = true;
+        document.getElementById("menuStyle").disabled = false;
+        break;
+      case GameState.QUIZ_MENU:
+        document.getElementById("gameStyle").disabled = true;
+        document.getElementById("menuStyle").disabled = true;
+        document.getElementById("quizMenuStyle").disabled = false;
+        break;
+      case GameState.SETTINGS:
+        document.getElementById("gameStyle").disabled = true;
+        document.getElementById("menuStyle").disabled = true;
+        document.getElementById("settingsMenuStyle").disabled = false;
+        break;
+      default:
+        document.getElementById("gameStyle").disabled = false;
+        document.getElementById("menuStyle").disabled = true;
+        document.getElementById("quizMenuStyle").disabled = true;
+    }
+  }
+
+  enterGoal() {
+    this.goalCooldown = this.maxGoalCooldown;
+    this.score += CONFIG.pointsPerQuestion; // reward for completing question
+    this.quizManager.markCurrentQuestionCompleted(); // CURRENT QUESTION DONE
+    this.particleManager.spawnParticles(
+      this.player.x,
+      this.player.y,
+      99,
+      {r: 255, g: 215, b: 0},
+      0,
+      0
+    );
+
+    this.completedQuestions++;
+    if (this.completedQuestions >= this.totalQuestions) {
+      const maxScore = this.totalQuestions * CONFIG.pointsPerQuestion;
+      const percent = Math.round((this.score / maxScore) * 100);
+
+      this.performanceText.textContent = `Performance Rating: ${percent}%`;
+
+      this.state = GameState.WIN;
+      this.winOverlay.classList.remove("hidden");
+    }
+  }
+
+
+  // handles all movement and collision logic
+  moveAndCollide(deltaTime) {
+    // axis separation: handle x and y logic separately
+
+    // update x movement
+    this.obstacleManager.update(deltaTime);
+
+    // handle x collisions
+    this.obstacleManager.obstacles.forEach(obstacle => {
+        if (this.player.collidesWith(obstacle)) {
+          switch(obstacle.type) {
+            case 'goal':
+              if (this.goalCooldown <= 0) {
+                this.enterGoal();
+              }
+              break;
+            case 'text':
+              break;
+            default:
+              console.log("Collided with " + obstacle.type);
+              this.gameOver();
+              break;
+          }
+
+        }
+    });
+
+    // update y movement
+    this.player.update(deltaTime, this.input);
+
+    // handle y collisions
+    this.player.groundBlock = null;
+    this.obstacleManager.obstacles.forEach(obstacle => {
+        if (this.player.collidesWith(obstacle)) {
+          switch(obstacle.type) {
+            case 'goal':
+              break;
+            case 'block':
+              if (this.player.vy < 0) {
+                this.player.y = obstacle.y + obstacle.height;
+                this.player.vy *= -0.2;
+              } else {
+                this.player.vy = 0; // ensure no downward velocity before player is able to jump
+                this.player.isOnGround = true;
+                this.player.y = obstacle.y - this.player.height;
+                this.player.groundBlock = obstacle;
+              }
+              break;
+            case 'spike':
+              this.gameOver();
+              break;
+            case 'slime':
+              if (this.player.vy < 0) {
+                this.player.y = obstacle.y + obstacle.height;
+              } else {
+                this.player.isOnGround = true;
+                this.player.y = obstacle.y - this.player.height;
+                this.player.groundBlock = obstacle;
+              }
+              this.player.vy *= -0.5; // bouncy
+              for (let i = 0; i < 30; i++) {
+                this.particleManager.spawnGroundParticles(
+                  this.player.x, 
+                  this.player.y + this.player.height / 2, 
+                  Math.max(1, 10 - this.particleManager.particles.length), 
+                  {r:100, g:255, b:100},
+                  -5, -2
+                );
+              }
+              this.player.jump();
+              break;
+            default:
+          }
+        }
+    });
+  }
+
+  setConfig(key, val) {
+    CONFIG[key] = val;
+    console.log(`Config updated: ${key} = ${val}`);
+  }
+
+}

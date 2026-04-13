@@ -29,7 +29,7 @@ class QuizMenu extends HTMLElement {
   </div>
   <div class="quiz-item">
   <div class="quiz-content">
-  <div class="quiz-thumb"><img src="../src/sprites/trig_id.png"/></div>
+  <div class="quiz-thumb"><img src="./src/sprites/trig_id.png"/></div>
   <div>
   <div class="quiz-title">Trig Identities</div>
   <div class="quiz-meta">MHF4U • Trigonometry Part 2</div>
@@ -39,7 +39,7 @@ class QuizMenu extends HTMLElement {
   </div>
   <div class="quiz-item">
   <div class="quiz-content">
-  <div class="quiz-thumb"><img src="../src/sprites/solubility.png"/></div>
+  <div class="quiz-thumb"><img src="./src/sprites/solubility.png"/></div>
   <div>
   <div class="quiz-title">Solubility Theory Quiz</div>
   <div class="quiz-meta">SCH4U • Solubility</div>
